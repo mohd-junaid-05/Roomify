@@ -104,7 +104,7 @@ export default function Home() {
           </div>
           <div className="projects-grid">
             {projects.map(({id, name, renderedImage, sourceImage, timestamp}) => (
-              <div className="project-card group">
+              <div key={id} className="project-card group">
               <div className="preview">
                 <img
                   src={renderedImage || sourceImage}
@@ -120,7 +120,7 @@ export default function Home() {
                   <div className="meta">
                     <Clock size={12} />
                     <span>{new Date(timestamp).toLocaleDateString()}</span>
-                    <span>BY JUNAid</span>
+                    <span>BY JUNAID</span>
                   </div>
                 </div>
                 <div className="arrow">
