@@ -1,0 +1,2 @@
+Update the Upload component by adding drag-and-drop handlers and an onChange function that passes files to a new processFile function. Inside processFile, use FileReader to get a Base64 string and setInterval to increment progress using constants from lib/constants.ts file. When progress reaches 100, clear the interval and call onComplete with the Base64 data after a REDIRECT_DELAY_MS delay. Ensure all upload logic is blocked if isSignedIn is false and the dropzone UI reflects the isDragging state.
+
