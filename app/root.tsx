@@ -44,7 +44,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 const DEFAULT_AUTH_STATE: AuthState = {
-  isSignIn : false,
+  isSignedIn: false,
   userName : null,
   userId : null,
 }
@@ -58,7 +58,7 @@ export default function App() {
 
 
       setAuthState({
-        isSignIn : !!user,
+        isSignedIn : !!user,
         userName : user?.username || user?.userName || null,
         userId : user?.uid || user?.userId || null
       })
@@ -68,6 +68,7 @@ export default function App() {
 
     } catch (error) {
       setAuthState(DEFAULT_AUTH_STATE)
+      return false;
     }
   }
 
@@ -77,6 +78,8 @@ export default function App() {
 
   const signIn = async () => {
     await puterSignIn();
+    // Give Puter's SDK a moment to commit the session before querying it
+    await new Promise((resolve) => setTimeout(resolve, 500));
     return await refreshAuth();
   }
 
