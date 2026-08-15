@@ -3,12 +3,13 @@ import Button from "./ui/button";
 import { Box } from "lucide-react";
 import "../app.css";
 import { useOutletContext } from "react-router";
+import puter from '@heyputer/puter.js';
 
 const Navbar = () => {
-  const   {isSignIn,userName, signIn, signOut} = useOutletContext<AuthContext>()
-  const handleAuthClick = async () => {
+  const { isSignedIn, userName, signIn, signOut, refreshAuth } = useOutletContext<AuthContext>()
 
-    if(isSignIn){
+  const handleAuthClick = async () => {
+    if (isSignedIn) {
       try {
         await signOut()
       } catch (error) {
@@ -18,11 +19,14 @@ const Navbar = () => {
     }
 
     try {
-      await signIn()
+      // Call signIn() synchronously within the click to preserve
+      // the browser's user-gesture context — otherwise the popup is blocked
+      const signInPromise = puter.auth.signIn();
+      await signInPromise;
+      await refreshAuth();
     } catch (error) {
       console.log("Puter Signin failed", error)
     }
-
   };
   return (
     <header className="navbar">
@@ -40,7 +44,7 @@ const Navbar = () => {
           </div>
         </div>
         <div className="action">
-          {isSignIn ? (
+          {isSignedIn ? (
             <>
             <span className="greeting">{userName ? `Hi, ${userName}  ` : 'Signed in'}</span>
             <Button  onClick={handleAuthClick} className="btn">Log Out</Button>

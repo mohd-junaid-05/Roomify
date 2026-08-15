@@ -16,11 +16,11 @@ const Upload = ({ onComplete }: UploadProps) => {
   const [isDragging, setIsDragging] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const { isSignIn } = useOutletContext<AuthContext>();
+  const { isSignedIn } = useOutletContext<AuthContext>();
 
   // ── processFile ──────────────────────────────────────────────────────────────
   const processFile = (selected: File) => {
-    if (!isSignIn) return;
+    if (!isSignedIn) return;
 
     setFile(selected);
     setProgress(0);
@@ -52,7 +52,7 @@ const Upload = ({ onComplete }: UploadProps) => {
 
   // ── onChange (file input) ────────────────────────────────────────────────────
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!isSignIn) return;
+    if (!isSignedIn) return;
     const selected = e.target.files?.[0];
     if (selected) processFile(selected);
   };
@@ -60,7 +60,7 @@ const Upload = ({ onComplete }: UploadProps) => {
   // ── Drag-and-drop handlers ───────────────────────────────────────────────────
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
-    if (!isSignIn) return;
+    if (!isSignedIn) return;
     setIsDragging(true);
   };
 
@@ -72,7 +72,7 @@ const Upload = ({ onComplete }: UploadProps) => {
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(false);
-    if (!isSignIn) return;
+    if (!isSignedIn) return;
 
     const dropped = e.dataTransfer.files?.[0];
     if (dropped) processFile(dropped);
@@ -92,7 +92,7 @@ const Upload = ({ onComplete }: UploadProps) => {
             type="file"
             className="drop-input"
             accept=".jpg, .jpeg, .png"
-            disabled={!isSignIn}
+            disabled={!isSignedIn}
             onChange={handleChange}
           />
           <div className="drop-content">
@@ -100,7 +100,7 @@ const Upload = ({ onComplete }: UploadProps) => {
               <UploadIcon size={20} />
             </div>
             <p className="drop-text">
-              {isSignIn
+              {isSignedIn
                 ? "Click to upload or just drag and drop"
                 : "Sign in or sign up with Puter to upload"}
             </p>
