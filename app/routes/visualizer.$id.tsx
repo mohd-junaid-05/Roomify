@@ -1,16 +1,22 @@
-import { useLocation, useNavigate, useOutletContext, useParams } from "react-router";
+import {
+  useLocation,
+  useNavigate,
+  useOutletContext,
+  useParams,
+} from "react-router";
 import { useEffect, useRef, useState } from "react";
 import { generate3DView } from "../../lib/ai.action";
 import { Box, Download, RefreshCcw, Share2, UserPen, X } from "lucide-react";
 import Button from "~/components/ui/button";
 import { createProject, getProjectById } from "../../lib/puter.action";
+import { ReactCompareSlider, ReactCompareSliderImage } from "react-compare-slider";
 
 const VisualizerId = () => {
-  const {id} = useParams();
+  const { id } = useParams();
 
   const navigate = useNavigate();
-  
-  const {userId} = useOutletContext<AuthContext>()
+
+  const { userId } = useOutletContext<AuthContext>();
 
   const hasInitialGenerated = useRef(false);
 
@@ -18,9 +24,40 @@ const VisualizerId = () => {
   const [isProjectLoading, setIsProjectLoading] = useState(true);
 
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentImage, setCurrentImage] = useState<string | null>(project?.renderedImage || null);
+  const [currentImage, setCurrentImage] = useState<string | null>(
+    project?.renderedImage || null,
+  );
 
   const handleBack = () => navigate("/");
+
+  const handleExport = async () => {
+    if (!currentImage) return;
+
+    try {
+      let blob: Blob;
+
+      if (currentImage.startsWith("data:")) {
+        // data URL — convert directly to blob
+        const res = await fetch(currentImage);
+        blob = await res.blob();
+      } else {
+        // Remote URL — fetch with CORS
+        const res = await fetch(currentImage);
+        blob = await res.blob();
+      }
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `roomify-render-${id ?? Date.now()}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Export failed:", err);
+    }
+  };
 
   const runGeneration = async (item: DesignItem) => {
     if (!id || !item.sourceImage) return;
@@ -35,18 +72,21 @@ const VisualizerId = () => {
         const updatedItem = {
           ...item,
           renderedImage: result.renderedImage,
-          renderedPath : result.renderedPath,
+          renderedPath: result.renderedPath,
           timestamp: Date.now(),
           ownerId: item.ownerId ?? userId ?? null,
           isPublic: item.isPublic ?? false,
-        }
-        
-        const saved = await createProject({item: updatedItem, visibility: "private"})
+        };
 
-        if(saved) {
+        const saved = await createProject({
+          item: updatedItem,
+          visibility: "private",
+        });
+
+        if (saved) {
           setProject(saved);
-          setCurrentImage(saved.renderedImage || result.renderedImage)
-        } 
+          setCurrentImage(saved.renderedImage || result.renderedImage);
+        }
       }
     } catch (error) {
       console.log("Generation failed:", error);
@@ -131,7 +171,7 @@ const VisualizerId = () => {
               <div className="panel-actions">
                 <Button
                   size="sm"
-                  onClick={() => {}}
+                  onClick={handleExport}
                   className="export"
                   disabled={!currentImage}
                 >
@@ -147,30 +187,65 @@ const VisualizerId = () => {
                 </Button>
               </div>
             </div>
-            <div className={`render-area ${isProcessing ? 'is-processing': ''}`}>
-                {currentImage ? (
-                    <img src={currentImage} alt="AI render" className="render-img"/>
+            <div
+              className={`render-area ${isProcessing ? "is-processing" : ""}`}
+            >
+              {currentImage ? (
+                <img
+                  src={currentImage}
+                  alt="AI render"
+                  className="render-img"
+                />
+              ) : (
+                <div className="render-placeholder">
+                  {project?.sourceImage && (
+                    <img
+                      src={project.sourceImage}
+                      alt="Original"
+                      className="render-fallback"
+                    />
+                  )}
+                </div>
+              )}
 
-                ) : (
-                    <div className="render-placeholder">
-                        {
-                            project?.sourceImage && (
-                                <img src={project.sourceImage} alt="Original"
-                                className="render-fallback" />
-                            )
-                        }
-                    </div>
-                )}
+              {isProcessing && (
+                <div className="render-overlay">
+                  <div className="rendering-card">
+                    <RefreshCcw className="spinner" />
+                    <span className="title">Rendering...</span>
+                    <span className="subtitle">
+                      Please wait for the image to render. It may take a few
+                      seconds.
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
 
-                {isProcessing && (
-                    <div className="render-overlay">
-                        <div className="rendering-card">
-                            <RefreshCcw className="spinner" />
-                            <span className="title">Rendering...</span>
-                            <span className="subtitle">Please wait for the image to render. It may take a few seconds.</span>
-                        </div>
-                    </div>
-                )}
+          <div className="panel compare">
+            <div className="panel-header">
+              <div className="panel-meta">
+                <p>Comparison</p>
+                <h2>Before After</h2>
+              </div>
+              <div className="hint">Drag to compare</div>
+            </div>
+
+            <div className="compare-stage">
+              {project?.sourceImage && currentImage ? (
+                <ReactCompareSlider
+                  itemOne={<ReactCompareSliderImage src={project.sourceImage} alt="Before" className="compare-image" />}
+                  itemTwo={<ReactCompareSliderImage src={currentImage} alt="After" className="compare-image" />}
+                  style={{width:'100%',height:'100%',position:'relative',borderRadius:'16px'  }}
+                />
+              ) : (
+                <div className="compare-fallback">
+                 {project?.sourceImage && (
+                  <img src={project.sourceImage} alt="before" className="compare-img"/>
+                 )}
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -179,5 +254,3 @@ const VisualizerId = () => {
   );
 };
 export default VisualizerId;
-
-
