@@ -13,6 +13,12 @@ import { ReactCompareSlider, ReactCompareSliderImage } from "react-compare-slide
 
 const VisualizerId = () => {
   const { id } = useParams();
+  const location = useLocation();
+  const locationState = location.state as {
+    initialImage?: string;
+    initialRender?: string | null;
+    name?: string;
+  } | null;
 
   const navigate = useNavigate();
 
@@ -24,6 +30,7 @@ const VisualizerId = () => {
   const [isProjectLoading, setIsProjectLoading] = useState(true);
 
   const [isProcessing, setIsProcessing] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
   const [currentImage, setCurrentImage] = useState<string | null>(
     project?.renderedImage || null,
   );
@@ -64,6 +71,7 @@ const VisualizerId = () => {
 
     try {
       setIsProcessing(true);
+      setGenerationError(null);
       const result = await generate3DView({ sourceImage: item.sourceImage });
 
       if (result.renderedImage) {
@@ -88,8 +96,9 @@ const VisualizerId = () => {
           setCurrentImage(saved.renderedImage || result.renderedImage);
         }
       }
-    } catch (error) {
-      console.log("Generation failed:", error);
+    } catch (error: any) {
+      console.error("Generation failed:", error);
+      setGenerationError(error?.message || "Generation failed. Please try again.");
     } finally {
       setIsProcessing(false);
     }
@@ -106,14 +115,29 @@ const VisualizerId = () => {
         return;
       }
 
+      if (locationState?.initialImage) {
+        setProject({
+          id,
+          name: locationState.name || `Residence ${id}`,
+          sourceImage: locationState.initialImage,
+          renderedImage: locationState.initialRender || undefined,
+          timestamp: Date.now(),
+        });
+        if (locationState.initialRender) {
+          setCurrentImage(locationState.initialRender);
+        }
+      }
+
       setIsProjectLoading(true);
 
       const fetchedProject = await getProjectById({ id });
 
       if (!isMounted) return;
 
-      setProject(fetchedProject);
-      setCurrentImage(fetchedProject?.renderedImage || null);
+      if (fetchedProject) {
+        setProject(fetchedProject);
+        setCurrentImage(fetchedProject?.renderedImage || null);
+      }
       setIsProjectLoading(false);
       hasInitialGenerated.current = false;
     };
@@ -169,6 +193,18 @@ const VisualizerId = () => {
                 <p className="note">Created by You </p>
               </div>
               <div className="panel-actions">
+                {project?.sourceImage && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => runGeneration(project)}
+                    className="regenerate"
+                    disabled={isProcessing}
+                  >
+                    <RefreshCcw className={`w-4 h-4 mr-2 ${isProcessing ? "animate-spin" : ""}`} />
+                    {isProcessing ? "Rendering..." : "Regenerate"}
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   onClick={handleExport}
@@ -217,6 +253,24 @@ const VisualizerId = () => {
                       Please wait for the image to render. It may take a few
                       seconds.
                     </span>
+                  </div>
+                </div>
+              )}
+
+              {generationError && !isProcessing && (
+                <div className="render-overlay">
+                  <div className="rendering-card" style={{ borderColor: "rgba(239, 68, 68, 0.4)" }}>
+                    <span className="title" style={{ color: "#ef4444" }}>Generation Failed</span>
+                    <span className="subtitle">{generationError}</span>
+                    {project && (
+                      <Button
+                        size="sm"
+                        onClick={() => runGeneration(project)}
+                        style={{ marginTop: "12px" }}
+                      >
+                        <RefreshCcw className="w-4 h-4 mr-2" /> Try Again
+                      </Button>
+                    )}
                   </div>
                 </div>
               )}
