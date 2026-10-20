@@ -7,10 +7,10 @@
 ## 1. Executive Summary & Vision
 
 ### What is Roomify?
-Roomify bridges the gap between technical 2D architectural blueprints and intuitive, photorealistic 3D interior renders. By integrating **React 19**, **React Router v8 (SSR)**, and **Google Gemini 2.5 Flash Image Preview** via **Puter.js Cloud Services**, Roomify automates the extrusion of walls, furniture mapping, lighting setup, and material texturing without requiring complex CAD or 3D modeling software (like Blender, 3ds Max, or SketchUp).
+Roomify bridges the gap between technical 2D architectural blueprints and intuitive, photorealistic 3D interior renders. By integrating **React 19**, **React Router v8 (SSR)**, and **Google Gemini** (`gemini-2.5-flash-image`, with `gemini-3.1-flash-image` as a retry fallback) via **Puter.js Cloud Services**, Roomify automates the extrusion of walls, furniture mapping, lighting setup, and material texturing without requiring complex CAD or 3D modeling software (like Blender, 3ds Max, or SketchUp).
 
 ### Core Value Proposition
-- **Frictionless Blueprint Conversion:** Ingests JPG, PNG, and WebP architectural plans and yields top-down 3D isometric/orthographic renders.
+- **Frictionless Blueprint Conversion:** Ingests JPG, PNG, and WebP architectural plans and yields orthographic top-down 3D renders.
 - **Strict Prompt Engineering & Geometry Preservation:** Enforces exact wall alignments, removes blueprint clutter (dimensions, text annotations), and realistically maps 2D CAD symbols to 3D furniture.
 - **Serverless Cloud Native Stack:** Leverages Puter.js for zero-server setup — handling OAuth authentication, serverless microservice workers, distributed KV storage, and file hosting on public CDNs (`.puter.site`).
 - **Interactive Visualizer Studio:** Side-by-side interactive split slider comparing the 2D schematic original against the 3D photorealistic render, with one-click high-resolution PNG export.
@@ -25,7 +25,7 @@ sequenceDiagram
     actor User
     participant Frontend as Roomify UI (React Router v8)
     participant PuterAuth as Puter.js Auth
-    participant PuterAI as Puter AI (Gemini 2.5)
+    participant PuterAI as Puter AI (gemini-2.5-flash-image; retry gemini-3.1-flash-image)
     participant PuterHosting as Puter Hosting & FS
     participant PuterWorker as Puter Worker API
     participant PuterKV as Puter KV Store
@@ -50,8 +50,11 @@ sequenceDiagram
     Frontend->>Frontend: Navigate to /visualizer/:id
 
     %% AI Generation Flow
-    Frontend->>PuterAI: puter.ai.txt2img(ROOMIFY_RENDER_PROMPT, input_image)
-    Note over PuterAI: Gemini 2.5 Flash processes plan,<br/>extrudes walls, removes text,<br/>maps furniture & textures
+    Frontend->>PuterAI: puter.ai.txt2img(ROOMIFY_RENDER_PROMPT, model: gemini-2.5-flash-image, input_image)
+    opt Primary model throws
+        Frontend->>PuterAI: Retry with model: gemini-3.1-flash-image
+    end
+    Note over PuterAI: Processes plan, extrudes walls,<br/>removes text, maps furniture & textures
     PuterAI-->>Frontend: 3D Rendered Image URL / Data URL
     Frontend->>PuterHosting: uploadImageToHosting(renderedImage)
     PuterHosting-->>Frontend: Hosted Public CDN URL (rendered image)
@@ -80,7 +83,7 @@ sequenceDiagram
 3. **AI Generation Pipeline (`lib/ai.action.ts` & `lib/constants.ts`):**
    - In `/visualizer/:id`, the component triggers `generate3DView()`.
    - Base64 payload and MIME type are extracted and passed to `puter.ai.txt2img()`.
-   - Uses `provider: 'gemini'`, `model: 'gemini-2.5-flash-image-preview'`, and aspect ratio `1024x1024`.
+   - Uses `model: 'gemini-2.5-flash-image'` with a `gemini-3.1-flash-image` retry fallback if the primary call throws, and aspect ratio `1024x1024`. No explicit `provider` option is passed.
    - The strict prompt ensures geometry alignment, wall extrusion, text removal, door swing conversion, and room mapping (beds, sectionals, kitchen counters, sanitaryware, etc.).
 
 4. **Asset Hosting & CDN Provisioning (`lib/puter.hosting.ts`):**
@@ -107,7 +110,7 @@ sequenceDiagram
 | **Frontend Framework** | **React Router v8** (SSR Mode) | File-based routing, nested layout context, server-side rendering, and production serving. |
 | **UI Library & Components** | **React 19** + **Lucide React** | React 19 hooks (`useRef`, `useState`, `useEffectEvent`), modern reactive components, and clean icons. |
 | **Styling & Design System** | **Tailwind CSS v4** + `app.css` | Custom dark modern theme, glassmorphism, glowing accents, grid overlays, pulse badges, and keyframe animations. |
-| **AI Rendering Engine** | **Google Gemini 2.5 Flash Image Preview** | Multimodal image-to-image synthesis executed through Puter AI SDK (`puter.ai.txt2img`). |
+| **AI Rendering Engine** | **Google Gemini** (`gemini-2.5-flash-image`; retry fallback: `gemini-3.1-flash-image`) | Multimodal image-to-image synthesis executed through Puter AI SDK (`puter.ai.txt2img`). |
 | **Cloud Platform & Auth** | **Puter.js SDK** (`@heyputer/puter.js`) | Zero-backend cloud services: Puter Auth, Puter KV, Puter Filesystem, and Puter Hosting. |
 | **Comparison Slider** | **React Compare Slider** | Interactive dual-layer comparison slider for 2D vs 3D inspection. |
 | **Serverless Backend** | **Puter Worker Router** | Lightweight serverless microservice router (`lib/puter.worker.js`) executing KV operations. |
@@ -133,7 +136,7 @@ Roomify/
 │   ├── root.tsx                    # Root HTML layout, font preconnects, AuthContext provider, ErrorBoundary
 │   └── routes.ts                   # Route definition mapping ("/" -> home.tsx, "/visualizer/:id" -> visualizer.$id.tsx)
 ├── lib/
-│   ├── ai.action.ts                # AI integration with puter.ai.txt2img (Gemini 2.5 Flash preview)
+│   ├── ai.action.ts                # AI: gemini-2.5-flash-image; retry gemini-3.1-flash-image
 │   ├── constants.ts               # Render prompts, storage paths, progress intervals, grid settings
 │   ├── puter.action.ts             # Puter SDK client operations (signIn, signOut, createProject, getProjects, getProjectById)
 │   ├── puter.hosting.ts            # Puter CDN hosting setup, FS directory creation, and Blob upload pipeline
@@ -173,7 +176,7 @@ Roomify/
 
 ### 5.2 AI Prompt Engineering & Rendering Pipeline
 - **Location:** `lib/ai.action.ts`, `lib/constants.ts`
-- **Model:** `gemini-2.5-flash-image-preview` (via Puter AI)
+- **Model:** `gemini-2.5-flash-image` via Puter AI, with one retry using `gemini-3.1-flash-image` if the primary call throws. No explicit `provider` option is passed.
 - **Engine Rules:**
   1. **Text & Annotation Removal:** Completely strips numbers, room tags, dimensions, and architectural marks, replacing them with seamless continuous flooring.
   2. **Strict Geometric Alignment:** Retains exact door, wall, window, and opening positions.

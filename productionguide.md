@@ -155,6 +155,8 @@ PORT=3000
 
 The repository includes a production multi-stage `Dockerfile`:
 
+The `build-env` stage declares `ARG VITE_PUTER_WORKER_URL` and exposes it with `ENV VITE_PUTER_WORKER_URL=$VITE_PUTER_WORKER_URL` before `npm run build`, so Vite embeds the supplied worker URL in the bundle.
+
 1. **Build Container Image:**
    ```bash
    docker build --build-arg VITE_PUTER_WORKER_URL=https://your-worker.puter.work -t roomify:latest .
@@ -185,6 +187,13 @@ The repository includes a production multi-stage `Dockerfile`:
    ```
 
 3. **Configure Nginx Reverse Proxy with SSL (Certbot):**
+   Replace `yourdomain.com` with a domain whose DNS points to this server, and allow inbound ports 80 and 443. Install Nginx and Certbot:
+   ```bash
+   sudo apt-get update
+   sudo apt-get install -y nginx certbot python3-certbot-nginx
+   ```
+
+   Save this initial HTTP configuration to `/etc/nginx/sites-available/roomify` so Certbot can validate the domain:
    ```nginx
    server {
        listen 80;
@@ -204,6 +213,51 @@ The repository includes a production multi-stage `Dockerfile`:
    }
    ```
 
+   Enable the site, validate the configuration, and reload Nginx. Then obtain and install the certificate with an HTTP-to-HTTPS redirect:
+   ```bash
+   sudo ln -s /etc/nginx/sites-available/roomify /etc/nginx/sites-enabled/roomify
+   sudo nginx -t
+   sudo systemctl reload nginx
+   sudo certbot --nginx -d yourdomain.com --redirect
+   ```
+
+   After certificate issuance, the site configuration should serve HTTPS on port 443 and redirect HTTP requests, as shown below. Certificate files must exist before enabling this configuration:
+   ```nginx
+   server {
+       listen 80;
+       server_name yourdomain.com;
+       return 301 https://yourdomain.com$request_uri;
+   }
+
+   server {
+       listen 443 ssl;
+       server_name yourdomain.com;
+
+       ssl_certificate /etc/letsencrypt/live/yourdomain.com/fullchain.pem;
+       ssl_certificate_key /etc/letsencrypt/live/yourdomain.com/privkey.pem;
+       ssl_protocols TLSv1.2 TLSv1.3;
+
+       location / {
+           proxy_pass http://127.0.0.1:3000;
+           proxy_http_version 1.1;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection 'upgrade';
+           proxy_set_header Host $host;
+           proxy_cache_bypass $http_upgrade;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto $scheme;
+       }
+   }
+   ```
+
+   Validate any configuration edits, reload, and verify automatic certificate renewal:
+   ```bash
+   sudo nginx -t
+   sudo systemctl reload nginx
+   sudo certbot renew --dry-run
+   ```
+
 ---
 
 ### Option 3: Puter Worker Backend Deployment
@@ -216,8 +270,7 @@ The repository includes a production multi-stage `Dockerfile`:
 ## 7. Production Readiness Checklist & Code Gotchas
 
 ### 1. Code Fixes & Safety Gotchas
-- [ ] **Fix variable reference bug in `lib/puter.worker.js:50`:**
-  In the `catch (error)` block, change `e.message` to `error.message` to avoid throwing a `ReferenceError`.
+- [x] **Worker error reporting:** The `catch (error)` blocks in `lib/puter.worker.js` use `error.message` (or `error?.message`) to report failures.
 - [ ] **Dynamic Author Attribution in `app/routes/home.tsx:140`:**
   Replace static `<span>BY JUNAID</span>` with dynamic project author or current user's name (`userName || 'User'`).
 - [ ] **Implement Share Handler in `app/routes/visualizer.$id.tsx:182`:**
@@ -229,6 +282,6 @@ The repository includes a production multi-stage `Dockerfile`:
 - [ ] Add a `favicon.ico` / `favicon.svg` and web app manifest in `public/`.
 
 ### 3. Error Handling & Edge Cases
-- [ ] **AI Timeout & Failures:** Handle cases where `puter.ai.txt2img` times out or returns non-200 by adding a user-facing retry toast or alert banner in `app/routes/visualizer.$id.tsx`.
+- [x] **AI Failure & Retry Handling:** `lib/ai.action.ts` retries a failed primary generation with `gemini-3.1-flash-image`; `app/routes/visualizer.$id.tsx` shows a generation error and a Try Again button when generation throws.
 - [ ] **Large Payload Protection:** Prevent browser memory spikes by validating image dimensions and file sizes (e.g., client-side downscaling floor plans larger than 4K before conversion).
 - [ ] **Session Expiry:** Gracefully handle Puter auth token expiration during ongoing generation requests.

@@ -15,10 +15,14 @@ const VisualizerId = () => {
   const { id } = useParams();
   const location = useLocation();
   const locationState = location.state as {
-    initialImage?: string;
+    initialImage?: unknown;
     initialRender?: string | null;
     name?: string;
   } | null;
+  const initialImage =
+    typeof locationState?.initialImage === "string"
+      ? locationState.initialImage
+      : null;
 
   const navigate = useNavigate();
 
@@ -67,7 +71,7 @@ const VisualizerId = () => {
   };
 
   const runGeneration = async (item: DesignItem) => {
-    if (!id || !item.sourceImage) return;
+    if (!id || item.id !== id || isProjectLoading || !item.sourceImage) return;
 
     try {
       setIsProcessing(true);
@@ -110,25 +114,29 @@ const VisualizerId = () => {
     let isMounted = true;
 
     const loadProject = async () => {
+      hasInitialGenerated.current = false;
+      setIsProjectLoading(true);
+      setProject(null);
+      setCurrentImage(null);
+      setGenerationError(null);
+
       if (!id) {
         setIsProjectLoading(false);
         return;
       }
 
-      if (locationState?.initialImage) {
+      if (initialImage) {
         setProject({
           id,
-          name: locationState.name || `Residence ${id}`,
-          sourceImage: locationState.initialImage,
-          renderedImage: locationState.initialRender || undefined,
+          name: locationState?.name || `Residence ${id}`,
+          sourceImage: initialImage,
+          renderedImage: locationState?.initialRender || undefined,
           timestamp: Date.now(),
         });
-        if (locationState.initialRender) {
+        if (locationState?.initialRender) {
           setCurrentImage(locationState.initialRender);
         }
       }
-
-      setIsProjectLoading(true);
 
       const fetchedProject = await getProjectById({ id });
 
@@ -137,9 +145,13 @@ const VisualizerId = () => {
       if (fetchedProject) {
         setProject(fetchedProject);
         setCurrentImage(fetchedProject?.renderedImage || null);
+      } else if (fetchedProject === null) {
+        // A failed fetch does not confirm that the provisional project is new.
+        setProject(null);
+        setCurrentImage(null);
+        setGenerationError("Unable to load project. Please reload and try again.");
       }
       setIsProjectLoading(false);
-      hasInitialGenerated.current = false;
     };
 
     loadProject();
@@ -153,6 +165,7 @@ const VisualizerId = () => {
     if (
       isProjectLoading ||
       hasInitialGenerated.current ||
+      project?.id !== id ||
       !project?.sourceImage
     )
       return;
@@ -165,7 +178,7 @@ const VisualizerId = () => {
 
     hasInitialGenerated.current = true;
     void runGeneration(project);
-  }, [project, isProjectLoading]);
+  }, [project, isProjectLoading, id]);
 
   return (
     <section>
@@ -199,7 +212,7 @@ const VisualizerId = () => {
                     variant="outline"
                     onClick={() => runGeneration(project)}
                     className="regenerate"
-                    disabled={isProcessing}
+                    disabled={isProcessing || isProjectLoading}
                   >
                     <RefreshCcw className={`w-4 h-4 mr-2 ${isProcessing ? "animate-spin" : ""}`} />
                     {isProcessing ? "Rendering..." : "Regenerate"}

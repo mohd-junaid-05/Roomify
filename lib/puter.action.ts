@@ -104,7 +104,8 @@ export const getProjects = async () => {
 }
 
 
-export const getProjectById = async ({ id }: { id: string }) => {
+// undefined confirms a missing project; null means the fetch failed.
+export const getProjectById = async ({ id }: { id: string }): Promise<DesignItem | null | undefined> => {
     if (!PUTER_WORKER_URL) {
         console.warn("Missing VITE_PUTER_WORKER_URL; skipping project fetch.");
         return null;
@@ -119,6 +120,8 @@ export const getProjectById = async ({ id }: { id: string }) => {
         );
 
         console.log("Fetch project response:", response);
+
+        if (response.status === 404) return undefined;
 
         if (!response.ok) {
             console.error("Failed to fetch project:", await response.text());
@@ -137,4 +140,3 @@ export const getProjectById = async ({ id }: { id: string }) => {
         return null;
     }
 };
-
